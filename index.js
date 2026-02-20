@@ -2,10 +2,23 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 
+
 const app = express();
 app.use(express.json());
 app.use(cors());
+app.post('/register', async (req, res) => {
+  const { email, phone, username, password } = req.body;
 
+  // Username yoxlaması
+  const existingUser = await User.findOne({ username });
+  if (existingUser) {
+    return res.status(400).json({ message: 'Bu username artıq mövcuddur' });
+  }
+
+  const newUser = new User({ emailOrPhone: email || phone, username, password, balance: 0 });
+  await newUser.save();
+  res.json({ message: 'Qeydiyyat uğurlu oldu' });
+});
 // MongoDB Atlas bağlantısı
 mongoose.connect("mongodb+srv://admin:123@cluster0.1xrr77f.mongodb.net/?appName=Cluster0", {
   useNewUrlParser: true,
