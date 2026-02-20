@@ -7,12 +7,9 @@ app.use(express.json());
 app.use(cors());
 
 // MongoDB Atlas bağlantısı
-mongoose.connect("mongodb+srv://admin:123@cluster0.1xrr77f.mongodb.net/ciyerAxsami?retryWrites=true&w=majority", {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-})
-.then(() => console.log('MongoDB qoşuldu'))
-.catch(err => console.log('MongoDB error:', err));
+mongoose.connect("mongodb+srv://admin:123@cluster0.1xrr77f.mongodb.net/ciyerAxsami") 
+  .then(() => console.log('MongoDB qoşuldu')) 
+  .catch(err => console.log('MongoDB error:', err));
 
 // User modeli
 const UserSchema = new mongoose.Schema({
