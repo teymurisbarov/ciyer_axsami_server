@@ -105,7 +105,15 @@ app.post('/rooms', async (req, res) => {
     res.status(500).json({ message: 'Server xətası', error: err.message });
   }
 });
-
+app.get('/rooms/:id', async (req, res) => {
+  try {
+    const room = await Room.findById(req.params.id);
+    if (!room) return res.status(404).json({ message: 'Otaq tapılmadı' });
+    res.json(room);
+  } catch (err) {
+    res.status(500).json({ message: 'Server xətası', error: err.message });
+  }
+});
 // Otağa qoşul
 app.post('/join-room/:id', async (req, res) => {
   const { username } = req.body;
