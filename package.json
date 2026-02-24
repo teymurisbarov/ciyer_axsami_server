@@ -13,6 +13,15 @@
   "dependencies": {
     "cors": "^2.8.6",
     "express": "^5.2.1",
-    "mongoose": "^9.2.1"
-  }
+    "mongoose": "^9.2.2",
+    "socket.io": "^4.8.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/teymurisbarov/ciyer_axsami_server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/teymurisbarov/ciyer_axsami_server/issues"
+  },
+  "homepage": "https://github.com/teymurisbarov/ciyer_axsami_server#readme"
 }
