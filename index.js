@@ -65,8 +65,16 @@ app.post('/login', async (req, res) => {
 });
 // Otaqları gətir
 app.get('/rooms', async (req, res) => {
-  const rooms = await Room.find();
-  res.json(rooms);
+  try {
+    // Əvvəlcə boş qalan otaqları bazadan təmizləyək (təhlükəsizlik üçün)
+    await Room.deleteMany({ players: { $size: 0 } });
+
+    // Sonra qalan otaqları gətirək
+    const rooms = await Room.find();
+    res.json(rooms);
+  } catch (err) {
+    res.status(500).json({ message: "Otaqlar gətirilərkən xəta" });
+  }
 });
 
 // Otaq yarat
