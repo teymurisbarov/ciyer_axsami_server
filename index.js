@@ -66,14 +66,14 @@ app.post('/login', async (req, res) => {
 // Otaqları gətir
 app.get('/rooms', async (req, res) => {
   try {
-    // Əvvəlcə boş qalan otaqları bazadan təmizləyək (təhlükəsizlik üçün)
+    // 1. Əvvəlcə bazadakı bütün boş otaqları tap və sil (Həqiqətən silindiyindən əmin oluruq)
     await Room.deleteMany({ players: { $size: 0 } });
 
-    // Sonra qalan otaqları gətirək
-    const rooms = await Room.find();
+    // 2. Silinmə bitdikdən sonra qalanları gətir
+    const rooms = await Room.find().lean(); // .lean() daha sürətli və təmiz data gətirir
     res.json(rooms);
   } catch (err) {
-    res.status(500).json({ message: "Otaqlar gətirilərkən xəta" });
+    res.status(500).json({ message: "Otaqlar gətirilərkən xəta", error: err.message });
   }
 });
 
