@@ -71,30 +71,31 @@ app.get('/rooms', async (req, res) => {
 
 // Otaq yarat
 app.post('/rooms', async (req, res) => { 
-    try {
-        const { name, limit, minBet, createdBy } = req.body; // minAmount əvəzinə minBet
+  try {
+    const { name, limit, minBet, createdBy } = req.body; 
 
-        if (limit < 2 || limit > 10) { 
-            return res.status(400).json({ message: 'Limit 2-10 arası olmalıdır' });
-        } 
-        
-        if (minBet < 0.2) { 
-            return res.status(400).json({ message: 'Minimum giriş 0.20 AZN olmalıdır' }); 
-        } 
+    // Validasiyalar
+    if (limit < 2 || limit > 10) { 
+      return res.status(400).json({ message: 'Limit 2-10 arası olmalıdır' }); 
+    } 
+    if (minBet < 0.2) { 
+      return res.status(400).json({ message: 'Minimum giriş 0.20 AZN olmalıdır' }); 
+    } 
 
-        const newRoom = new Room({ 
-            name, 
-            limit, 
-            minAmount: minBet, // Frontend-dən gələn minBet-i minAmount-a mənimsədirik
-            players: [], 
-            createdBy 
-        }); 
+    // Yeni otaq yarat və yaradanı birbaşa players siyahısına əlavə et
+    const newRoom = new Room({ 
+      name, 
+      limit, 
+      minAmount: minBet, 
+      players: [createdBy], // Yaradan oyunçu birbaşa daxil olur
+      createdBy 
+    }); 
 
-        await newRoom.save(); 
-        res.status(201).json(newRoom); 
-    } catch (err) {
-        res.status(500).json({ message: 'Otaq yaradılarkən xəta oldu', error: err.message });
-    }
+    await newRoom.save(); 
+    res.status(201).json(newRoom); 
+  } catch (err) {
+    res.status(500).json({ message: 'Server xətası', error: err.message });
+  }
 });
 
 // Otağa qoşul
