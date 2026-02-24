@@ -14,31 +14,50 @@ const io = new Server(server, {
 });
 
 io.on('connection', (socket) => {
+  let currentRoom = null;
+  let currentUser = null;
+
   socket.on('joinRoom', ({ roomId, username }) => {
     socket.join(roomId);
+    currentRoom = roomId;
+    currentUser = username;
 
-  if (!rooms[roomId]) {
-      rooms[roomId] = [];
-    }
-
+    if (!rooms[roomId]) rooms[roomId] = [];
+    
     if (!rooms[roomId].includes(username)) {
       rooms[roomId].push(username);
     }
+
+    // Otaqdakı hər kəsə yeni siyahını göndər
     io.to(roomId).emit('updatePlayerList', rooms[roomId]);
-    
-    console.log(`${username} girdi. Otaqda olanlar:`, rooms[roomId]);
+    console.log(`${username} daxil oldu:`, rooms[roomId]);
   });
 
   socket.on('makeMove', (data) => {
-    // Məsələn: { roomId, username, move: 'merc', amount: 5 }
     io.to(data.roomId).emit('updateGame', data);
   });
 
-  socket.on('disconnecting', () => {
-    socket.rooms.forEach(roomId => {
-      if (rooms[roomId]) {
-        }
-    });
+  // Otaqdan çıxma funksiyası
+  const leave = (roomId, username) => {
+    if (rooms[roomId]) {
+      rooms[roomId] = rooms[roomId].filter(u => u !== username);
+      io.to(roomId).emit('updatePlayerList', rooms[roomId]);
+      console.log(`${username} çıxdı. Qalanlar:`, rooms[roomId]);
+      
+      // Otaq boşdursa obyektdən sil
+      if (rooms[roomId].length === 0) delete rooms[roomId];
+    }
+  };
+
+  socket.on('leaveRoom', ({ roomId, username }) => {
+    leave(roomId, username);
+    socket.leave(roomId);
+  });
+
+  socket.on('disconnect', () => {
+    if (currentRoom && currentUser) {
+      leave(currentRoom, currentUser);
+    }
   });
 });
 
