@@ -20,6 +20,14 @@ const UserSchema = new mongoose.Schema({
   balance: { type: Number, default: 0 }
 });
 const User = mongoose.model('User', UserSchema);
+const RoomSchema = new mongoose.Schema({ 
+  name: { type: String, required: true }, // rayon + "toyu" 
+  limit: { type: Number, min: 2, max: 10, required: true }, 
+  minAmount: { type: Number, min: 0.2, required: true }, 
+  players: [{ type: String }], 
+  createdBy: { type: String, required: true } 
+}); 
+const Room = mongoose.model('Room', RoomSchema);
 
 // Qeydiyyat route
 app.post('/register', async (req, res) => {
@@ -55,5 +63,51 @@ app.post('/login', async (req, res) => {
     res.status(400).json({ message: 'Email/Telefon və ya parol səhvdir' });
   }
 });
+// Otaqları gətir
+app.get('/rooms', async (req, res) => {
+  const rooms = await Room.find();
+  res.json(rooms);
+});
+
+// Otaq yarat
+app.post('/create-room', async (req, res) => {
+  const { name, limit, minAmount, createdBy } = req.body;
+  if (limit < 2 || limit > 10) return res.status(400).json({ message: 'Limit 2-10 arası olmalıdır' });
+  if (minAmount < 0.2) return res.status(400).json({ message: 'Minimum giriş 0.20 AZN olmalıdır' });
+
+  const newRoom = new Room({ name, limit, minAmount, players: [], createdBy });
+  await newRoom.save();
+  res.json(newRoom);
+});
+
+// Otağa qoşul
+app.post('/join-room/:id', async (req, res) => {
+  const { username } = req.body;
+  const room = await Room.findById(req.params.id);
+  if (!room) return res.status(404).json({ message: 'Otaq tapılmadı' });
+  if (room.players.length >= room.limit) return res.status(400).json({ message: 'Otaq doludur' });
+
+  room.players.push(username);
+  await room.save();
+  res.json(room);
+});
+
+// Otaqdan çıx
+app.post('/leave-room/:id', async (req, res) => {
+  const { username } = req.body;
+  const room = await Room.findById(req.params.id);
+  if (!room) return res.status(404).json({ message: 'Otaq tapılmadı' });
+
+  room.players = room.players.filter(p => p !== username);
+
+  if (room.players.length === 0) {
+    await Room.findByIdAndDelete(req.params.id);
+    return res.json({ message: 'Otaq silindi' });
+  }
+
+  await room.save();
+  res.json(room);
+});
+
 
 app.listen(5000, () => console.log('Server 5000 portunda işləyir'));
