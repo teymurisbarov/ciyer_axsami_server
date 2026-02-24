@@ -1,10 +1,46 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-
+const http = require('http'); // Əlavə et
+const { Server } = require('socket.io'); // Əlavə et
+const rooms = {};
 const app = express();
 app.use(express.json());
 app.use(cors());
+
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: { origin: "*" } // Bütün bağlantılara icazə ver
+});
+
+io.on('connection', (socket) => {
+  socket.on('joinRoom', ({ roomId, username }) => {
+    socket.join(roomId);
+
+  if (!rooms[roomId]) {
+      rooms[roomId] = [];
+    }
+
+    if (!rooms[roomId].includes(username)) {
+      rooms[roomId].push(username);
+    }
+    io.to(roomId).emit('updatePlayerList', rooms[roomId]);
+    
+    console.log(`${username} girdi. Otaqda olanlar:`, rooms[roomId]);
+  });
+
+  socket.on('makeMove', (data) => {
+    // Məsələn: { roomId, username, move: 'merc', amount: 5 }
+    io.to(data.roomId).emit('updateGame', data);
+  });
+
+  socket.on('disconnecting', () => {
+    socket.rooms.forEach(roomId => {
+      if (rooms[roomId]) {
+        }
+    });
+  });
+});
 
 // MongoDB Atlas bağlantısı
 mongoose.connect("mongodb+srv://admin:123@cluster0.1xrr77f.mongodb.net/ciyerAxsami") 
@@ -144,4 +180,4 @@ app.post('/leave-room/:id', async (req, res) => {
 });
 
 
-app.listen(5000, () => console.log('Server 5000 portunda işləyir'));
+server.listen(5000, () => console.log('Server 5000 portunda işləyir'));
