@@ -17,94 +17,100 @@ io.on('connection', (socket) => {
   let currentRoom = null;
   let currentUser = null;
 
+  // Otağa giriş
   socket.on('joinRoom', ({ roomId, username }) => {
     socket.join(roomId);
     currentRoom = roomId;
     currentUser = username;
 
-    if (!rooms[roomId]) rooms[roomId] = [];
-    
-    if (!rooms[roomId].includes(username)) {
-      rooms[roomId].push(username);
+    if (!rooms[roomId]) {
+      rooms[roomId] = {
+        allPlayers: [],
+        roundPlayers: [],
+        countdown: 10,
+        timerActive: false
+      };
     }
 
-    // Otaqdakı hər kəsə yeni siyahını göndər
-    io.to(roomId).emit('updatePlayerList', rooms[roomId]);
-    console.log(`${username} daxil oldu:`, rooms[roomId]);
+    // Əgər otaqda bu ad yoxdursa əlavə et
+    if (!rooms[roomId].allPlayers.includes(username)) {
+      rooms[roomId].allPlayers.push(username);
+    }
+
+    // Otaqdakı hər kəsə tam siyahını göndər
+    io.to(roomId).emit('updatePlayerList', rooms[roomId].allPlayers);
+    console.log(`${username} otağa girdi: ${roomId}`);
   });
 
+  // Raunda Qoşulma (Düyməyə basanda)
+  socket.on('joinRound', ({ roomId, username }) => {
+    if (!rooms[roomId]) return;
+
+    if (!rooms[roomId].roundPlayers.includes(username)) {
+      rooms[roomId].roundPlayers.push(username);
+      // Kimlərin "Raunda daxil ol" düyməsinə basdığını bildiririk
+      io.to(roomId).emit('updateRoundPlayers', rooms[roomId].roundPlayers);
+    }
+
+    // Ən az 2 nəfər hazır olanda 10 saniyəlik taymeri başladırıq
+    if (rooms[roomId].roundPlayers.length >= 2 && !rooms[roomId].timerActive) {
+      rooms[roomId].timerActive = true;
+      rooms[roomId].countdown = 10;
+
+      let roundInterval = setInterval(() => {
+        io.to(roomId).emit('roundCountdown', rooms[roomId].countdown);
+        rooms[roomId].countdown--;
+
+        if (rooms[roomId].countdown < 0) {
+          clearInterval(roundInterval);
+          // Oyunun başladığını və iştirakçıları hər kəsə bildir
+          io.to(roomId).emit('roundStarted', rooms[roomId].roundPlayers);
+          
+          // Raund bitdikdən/başladıqdan sonra növbəti raund üçün hazırlıq
+          rooms[roomId].timerActive = false;
+          rooms[roomId].roundPlayers = []; 
+        }
+      }, 1000);
+    }
+  });
+
+  // Mərc və hərəkətlər
   socket.on('makeMove', (data) => {
     io.to(data.roomId).emit('updateGame', data);
   });
-socket.on('joinRound', async ({ roomId, username, amount }) => { 
-  if (!rooms[roomId]) return;
 
-  if (!rooms[roomId].roundPlayers) { 
-    rooms[roomId].roundPlayers = []; 
-    rooms[roomId].countdown = 10;
-    rooms[roomId].timerActive = false;
-  }
-
-  // Oyunçunu raunda əlavə et
-  if (!rooms[roomId].roundPlayers.includes(username)) { 
-    rooms[roomId].roundPlayers.push(username); 
-    // Hər kəsə kimlərin girdiyini bildir
-    io.to(roomId).emit('updateRoundPlayers', rooms[roomId].roundPlayers); 
-  }
-
-  // Ən az 2 oyunçu varsa və timer hələ başlamayıbsa
-  if (rooms[roomId].roundPlayers.length >= 2 && !rooms[roomId].timerActive) { 
-    rooms[roomId].timerActive = true;
-    rooms[roomId].countdown = 10;
-
-    let roundInterval = setInterval(() => {
-      io.to(roomId).emit('roundCountdown', rooms[roomId].countdown);
-      rooms[roomId].countdown--;
-
-      if (rooms[roomId].countdown < 0) {
-        clearInterval(roundInterval);
-        io.to(roomId).emit('roundStarted', rooms[roomId].roundPlayers);
-        // Raund başladıqdan sonra datanı sıfırla ki, növbəti raund üçün hazır olsun
-        rooms[roomId].timerActive = false;
-        rooms[roomId].roundPlayers = []; 
-      }
-    }, 1000);
-  } 
-});
-  // Otaqdan çıxma funksiyası
+  // Otaqdan çıxış funksiyası (Disconnet və ya manual çıxış)
   const leave = async (roomId, username) => {
-  // 1. Lokaldakı 'rooms' obyektindən sil (Online siyahı üçün)
-  if (rooms[roomId]) {
-    rooms[roomId] = rooms[roomId].filter(u => u !== username);
-    io.to(roomId).emit('updatePlayerList', rooms[roomId]);
-    
-    // Əgər otaqda heç kim qalmadısa obyekt təmizlənsin
-    if (rooms[roomId].length === 0) delete rooms[roomId];
-  }
-
-  // 2. MongoDB-dən sil (Otaqlar siyahısı üçün)
-  try {
-    const room = await Room.findById(roomId);
-    if (room) {
-      room.players = room.players.filter(p => p !== username);
+    if (rooms[roomId]) {
+      // Lokal siyahıdan sil
+      rooms[roomId].allPlayers = rooms[roomId].allPlayers.filter(u => u !== username);
+      rooms[roomId].roundPlayers = rooms[roomId].roundPlayers.filter(u => u !== username);
       
-      if (room.players.length === 0) {
-        await Room.findByIdAndDelete(roomId); // Otaqda heç kim yoxdursa BAZADAN SİL
-        console.log(`Otaq ${roomId} boşaldığı üçün bazadan silindi.`);
-      } else {
-        await room.save(); // Digər oyunçular qalıbsa yenilə
-      }
+      io.to(roomId).emit('updatePlayerList', rooms[roomId].allPlayers);
+      
+      if (rooms[roomId].allPlayers.length === 0) delete rooms[roomId];
     }
-  } catch (err) {
-    console.log("MongoDB leave error:", err);
-  }
-};
 
-// socket.on('disconnect') hissəsi artıq bu funksiyanı çağıracaq
-socket.on('disconnect', () => {
-  if (currentRoom && currentUser) {
-    leave(currentRoom, currentUser);
-  }
+    try {
+      const room = await Room.findById(roomId);
+      if (room) {
+        room.players = room.players.filter(p => p !== username);
+        if (room.players.length === 0) {
+          await Room.findByIdAndDelete(roomId);
+        } else {
+          await room.save();
+        }
+      }
+    } catch (err) {
+      console.log("DB Leave Error:", err);
+    }
+  };
+
+  socket.on('disconnect', () => {
+    if (currentRoom && currentUser) {
+      leave(currentRoom, currentUser);
+    }
+  });
 });
 // MongoDB Atlas bağlantısı
 mongoose.connect("mongodb+srv://admin:123@cluster0.1xrr77f.mongodb.net/ciyerAxsami") 
