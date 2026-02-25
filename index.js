@@ -1,4 +1,4 @@
-const express = require('express');
+const express = require ('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const http = require('http'); // Əlavə et
@@ -36,23 +36,39 @@ io.on('connection', (socket) => {
   socket.on('makeMove', (data) => {
     io.to(data.roomId).emit('updateGame', data);
   });
-socket.on('joinRound', ({ roomId, username, amount }) => { 
+socket.on('joinRound', async ({ roomId, username, amount }) => { 
   if (!rooms[roomId]) return;
-  // Raund siyahısı yoxdursa, yarat 
+
   if (!rooms[roomId].roundPlayers) { 
     rooms[roomId].roundPlayers = []; 
-    rooms[roomId].roundTimer = null; 
-  } // Oyunçunu raunda əlavə et 
+    rooms[roomId].countdown = 10;
+    rooms[roomId].timerActive = false;
+  }
+
+  // Oyunçunu raunda əlavə et
   if (!rooms[roomId].roundPlayers.includes(username)) { 
     rooms[roomId].roundPlayers.push(username); 
-    io.to(roomId).emit('updateRoundPlayers', 
-      rooms[roomId].roundPlayers); 
-    } // Ən az 2 oyunçu varsa və timer başlamayıbsa → 10 saniyəlik timer başlasın 
-  if (rooms[roomId].roundPlayers.length >= 2 && !rooms[roomId].roundTimer) { 
-    rooms[roomId].roundTimer = setTimeout(() => { 
-      io.to(roomId).emit('roundStarted', rooms[roomId].roundPlayers); 
-      rooms[roomId].roundTimer = null; 
-    }, 10000); 
+    // Hər kəsə kimlərin girdiyini bildir
+    io.to(roomId).emit('updateRoundPlayers', rooms[roomId].roundPlayers); 
+  }
+
+  // Ən az 2 oyunçu varsa və timer hələ başlamayıbsa
+  if (rooms[roomId].roundPlayers.length >= 2 && !rooms[roomId].timerActive) { 
+    rooms[roomId].timerActive = true;
+    rooms[roomId].countdown = 10;
+
+    let roundInterval = setInterval(() => {
+      io.to(roomId).emit('roundCountdown', rooms[roomId].countdown);
+      rooms[roomId].countdown--;
+
+      if (rooms[roomId].countdown < 0) {
+        clearInterval(roundInterval);
+        io.to(roomId).emit('roundStarted', rooms[roomId].roundPlayers);
+        // Raund başladıqdan sonra datanı sıfırla ki, növbəti raund üçün hazır olsun
+        rooms[roomId].timerActive = false;
+        rooms[roomId].roundPlayers = []; 
+      }
+    }, 1000);
   } 
 });
   // Otaqdan çıxma funksiyası
