@@ -72,29 +72,40 @@ socket.on('joinRound', async ({ roomId, username, amount }) => {
   } 
 });
   // Otaqdan çıxma funksiyası
-  const leave = (roomId, username) => {
-    if (rooms[roomId]) {
-      rooms[roomId] = rooms[roomId].filter(u => u !== username);
-      io.to(roomId).emit('updatePlayerList', rooms[roomId]);
-      console.log(`${username} çıxdı. Qalanlar:`, rooms[roomId]);
+  const leave = async (roomId, username) => {
+  // 1. Lokaldakı 'rooms' obyektindən sil (Online siyahı üçün)
+  if (rooms[roomId]) {
+    rooms[roomId] = rooms[roomId].filter(u => u !== username);
+    io.to(roomId).emit('updatePlayerList', rooms[roomId]);
+    
+    // Əgər otaqda heç kim qalmadısa obyekt təmizlənsin
+    if (rooms[roomId].length === 0) delete rooms[roomId];
+  }
+
+  // 2. MongoDB-dən sil (Otaqlar siyahısı üçün)
+  try {
+    const room = await Room.findById(roomId);
+    if (room) {
+      room.players = room.players.filter(p => p !== username);
       
-      // Otaq boşdursa obyektdən sil
-      if (rooms[roomId].length === 0) delete rooms[roomId];
+      if (room.players.length === 0) {
+        await Room.findByIdAndDelete(roomId); // Otaqda heç kim yoxdursa BAZADAN SİL
+        console.log(`Otaq ${roomId} boşaldığı üçün bazadan silindi.`);
+      } else {
+        await room.save(); // Digər oyunçular qalıbsa yenilə
+      }
     }
-  };
+  } catch (err) {
+    console.log("MongoDB leave error:", err);
+  }
+};
 
-  socket.on('leaveRoom', ({ roomId, username }) => {
-    leave(roomId, username);
-    socket.leave(roomId);
-  });
-
-  socket.on('disconnect', () => {
-    if (currentRoom && currentUser) {
-      leave(currentRoom, currentUser);
-    }
-  });
+// socket.on('disconnect') hissəsi artıq bu funksiyanı çağıracaq
+socket.on('disconnect', () => {
+  if (currentRoom && currentUser) {
+    leave(currentRoom, currentUser);
+  }
 });
-
 // MongoDB Atlas bağlantısı
 mongoose.connect("mongodb+srv://admin:123@cluster0.1xrr77f.mongodb.net/ciyerAxsami") 
   .then(() => console.log('MongoDB qoşuldu')) 
