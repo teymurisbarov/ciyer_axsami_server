@@ -36,7 +36,25 @@ io.on('connection', (socket) => {
   socket.on('makeMove', (data) => {
     io.to(data.roomId).emit('updateGame', data);
   });
-
+socket.on('joinRound', ({ roomId, username, amount }) => { 
+  if (!rooms[roomId]) return;
+  // Raund siyahısı yoxdursa, yarat 
+  if (!rooms[roomId].roundPlayers) { 
+    rooms[roomId].roundPlayers = []; 
+    rooms[roomId].roundTimer = null; 
+  } // Oyunçunu raunda əlavə et 
+  if (!rooms[roomId].roundPlayers.includes(username)) { 
+    rooms[roomId].roundPlayers.push(username); 
+    io.to(roomId).emit('updateRoundPlayers', 
+      rooms[roomId].roundPlayers); 
+    } // Ən az 2 oyunçu varsa və timer başlamayıbsa → 10 saniyəlik timer başlasın 
+  if (rooms[roomId].roundPlayers.length >= 2 && !rooms[roomId].roundTimer) { 
+    rooms[roomId].roundTimer = setTimeout(() => { 
+      io.to(roomId).emit('roundStarted', rooms[roomId].roundPlayers); 
+      rooms[roomId].roundTimer = null; 
+    }, 10000); 
+  } 
+});
   // Otaqdan çıxma funksiyası
   const leave = (roomId, username) => {
     if (rooms[roomId]) {
