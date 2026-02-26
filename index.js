@@ -18,21 +18,43 @@ io.on('connection', (socket) => {
   let currentUser = null;
 
   // Otağa giriş
-  socket.on('joinRoom', ({ roomId, username }) => {
+  socket.on('joinRoom', async ({ roomId, username }) => {
+  if (!username) return;
+
+  const room = await Room.findById(roomId);
+  if (!room) return;
+
+  if (room.players.length >= room.limit) {
+    socket.emit('roomFull');
+    return;
+  }
+
+  // DB-ə əlavə et (əgər yoxdursa)
+  if (!room.players.includes(username)) {
+    room.players.push(username);
+    await room.save();
+  }
+
   socket.join(roomId);
-  
+
+  // Socket memory
   if (!rooms[roomId]) {
-    rooms[roomId] = { allPlayers: [] };
+    rooms[roomId] = {
+      allPlayers: [],
+      roundPlayers: [],
+      timerActive: false
+    };
   }
 
   if (!rooms[roomId].allPlayers.includes(username)) {
     rooms[roomId].allPlayers.push(username);
   }
 
-  // Otaqdakı hər kəsə (o cümlədən yeni girənə) tam siyahını göndər
+  currentRoom = roomId;
+  currentUser = username;
+
   io.to(roomId).emit('updatePlayerList', rooms[roomId].allPlayers);
 });
-
   // Raunda Qoşulma (Düyməyə basanda)
   socket.on('joinRound', ({ roomId, username }) => {
     if (!rooms[roomId]) return;
@@ -72,30 +94,32 @@ io.on('connection', (socket) => {
 
   // Otaqdan çıxış funksiyası (Disconnet və ya manual çıxış)
   const leave = async (roomId, username) => {
-    if (rooms[roomId]) {
-      // Lokal siyahıdan sil
-      rooms[roomId].allPlayers = rooms[roomId].allPlayers.filter(u => u !== username);
-      rooms[roomId].roundPlayers = rooms[roomId].roundPlayers.filter(u => u !== username);
-      
-      io.to(roomId).emit('updatePlayerList', rooms[roomId].allPlayers);
-      
-      if (rooms[roomId].allPlayers.length === 0) delete rooms[roomId];
-    }
+  if (!roomId || !username) return;
 
-    try {
-      const room = await Room.findById(roomId);
-      if (room) {
-        room.players = room.players.filter(p => p !== username);
-        if (room.players.length === 0) {
-          await Room.findByIdAndDelete(roomId);
-        } else {
-          await room.save();
-        }
-      }
-    } catch (err) {
-      console.log("DB Leave Error:", err);
-    }
-  };
+  const room = await Room.findById(roomId);
+  if (!room) return;
+
+  room.players = room.players.filter(p => p !== username);
+
+  if (room.players.length === 0) {
+    await Room.findByIdAndDelete(roomId);
+    delete rooms[roomId];
+    return;
+  }
+
+  await room.save();
+
+  if (rooms[roomId]) {
+    rooms[roomId].allPlayers =
+      rooms[roomId].allPlayers.filter(u => u !== username);
+
+    io.to(roomId).emit('updatePlayerList', rooms[roomId].allPlayers);
+  }
+};
+socket.on('leaveRoom', async ({ roomId, username }) => {
+  await leave(roomId, username);
+  socket.leave(roomId);
+});
 
   socket.on('disconnect', () => {
     if (currentRoom && currentUser) {
