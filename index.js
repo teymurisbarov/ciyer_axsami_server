@@ -19,28 +19,19 @@ io.on('connection', (socket) => {
 
   // Otağa giriş
   socket.on('joinRoom', ({ roomId, username }) => {
-    socket.join(roomId);
-    currentRoom = roomId;
-    currentUser = username;
+  socket.join(roomId);
+  
+  if (!rooms[roomId]) {
+    rooms[roomId] = { allPlayers: [] };
+  }
 
-    if (!rooms[roomId]) {
-      rooms[roomId] = {
-        allPlayers: [],
-        roundPlayers: [],
-        countdown: 10,
-        timerActive: false
-      };
-    }
+  if (!rooms[roomId].allPlayers.includes(username)) {
+    rooms[roomId].allPlayers.push(username);
+  }
 
-    // Əgər otaqda bu ad yoxdursa əlavə et
-    if (!rooms[roomId].allPlayers.includes(username)) {
-      rooms[roomId].allPlayers.push(username);
-    }
-
-    // Otaqdakı hər kəsə tam siyahını göndər
-    io.to(roomId).emit('updatePlayerList', rooms[roomId].allPlayers);
-    console.log(`${username} otağa girdi: ${roomId}`);
-  });
+  // Otaqdakı hər kəsə (o cümlədən yeni girənə) tam siyahını göndər
+  io.to(roomId).emit('updatePlayerList', rooms[roomId].allPlayers);
+});
 
   // Raunda Qoşulma (Düyməyə basanda)
   socket.on('joinRound', ({ roomId, username }) => {
@@ -49,7 +40,7 @@ io.on('connection', (socket) => {
     if (!rooms[roomId].roundPlayers.includes(username)) {
       rooms[roomId].roundPlayers.push(username);
       // Kimlərin "Raunda daxil ol" düyməsinə basdığını bildiririk
-      io.to(roomId).emit('updateRoundPlayers', rooms[roomId].roundPlayers);
+      io.to(roomId).emit('updatePlayerList', rooms[roomId].allPlayers);
     }
 
     // Ən az 2 nəfər hazır olanda 10 saniyəlik taymeri başladırıq
