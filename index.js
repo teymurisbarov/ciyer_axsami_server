@@ -170,10 +170,8 @@ rooms[roomId].activePlayers.indexOf(starter);
 
 // raund başladı
 
-io.to(roomId).emit(
-'roundStarted',
-rooms[roomId].activePlayers
-);
+const cards = dealCards(rooms[roomId].activePlayers);
+io.to(roomId).emit('roundStarted', cards);
 
 
 // növbə kimdədir
