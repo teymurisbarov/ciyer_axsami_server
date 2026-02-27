@@ -248,9 +248,9 @@ const r=rooms[roomId];
 if(!r) return;
 
 
-// növbə yoxla
+// növbə kimdədir
 
-const turnUser =
+const turnUser=
 r.activePlayers[r.turnIndex];
 
 if(turnUser!==username)
@@ -266,44 +266,61 @@ return;
 r.lastBet=amount;
 
 
-// son mərc
-
-r.lastBet=amount;
-
-if(r.activePlayers.length===2){
-
-io.to(roomId).emit(
-'openCardsTimer',
-10
-);
-
-}
 // pot artır
 
 r.pot+=Number(amount);
 
-
 io.to(roomId).emit(
 'updatePot',
 r.pot
 );
 
 
-// hamıya göndər
-
-io.to(roomId).emit(
-'updatePot',
-r.pot
-);
-
-
-// 🔥 TIMER RESET
+// TIMER DAYANDIR
 
 if(r.turnTimer)
 clearInterval(r.turnTimer);
 
 
-// növbə dəyiş
+/*
+====================
+2 OYUNCU
+====================
+*/
+
+if(r.activePlayers.length===2){
+
+// qalan vaxtı istifadə et
+
+let decisionSeconds = r.turnTime;
+
+if(decisionSeconds>10)
+decisionSeconds=10;
+
+if(decisionSeconds<1)
+decisionSeconds=1;
+
+
+// clientə göndər
+
+io.to(roomId).emit(
+'openDecision',
+{
+seconds:decisionSeconds
+}
+);
+
+return;
+
+}
+
+
+/*
+====================
+3+ OYUNCU
+====================
+*/
+
 
 r.turnIndex=
 (r.turnIndex+1)%r.activePlayers.length;
@@ -311,14 +328,13 @@ r.turnIndex=
 const nextUser=
 r.activePlayers[r.turnIndex];
 
-
 io.to(roomId).emit(
 'turnChanged',
 nextUser
 );
 
 
-// 🔥 YENİ TIMER
+// yeni timer
 
 r.turnTime=30;
 
@@ -344,52 +360,6 @@ r.activePlayers[r.turnIndex];
 io.to(roomId).emit(
 'turnChanged',
 next
-);
-
-/*
-=========================
-3+ OYUNCU
-=========================
-*/
-
-if(r.activePlayers.length>2){
-
-r.turnIndex=
-(r.turnIndex+1)%r.activePlayers.length;
-
-const nextUser=
-r.activePlayers[r.turnIndex];
-
-io.to(roomId).emit(
-'turnChanged',
-nextUser
-);
-
-return;
-
-}
-
-
-/*
-=========================
-2 OYUNCU
-=========================
-*/
-
-
-// kart aç timeri
-
-r.openTime=10;
-
-
-io.to(roomId).emit(
-'openDecision',
-{
-
-starter:username,
-seconds:10
-
-}
 );
 
 }
@@ -440,10 +410,8 @@ if(!r) return;
 r.turnIndex=
 (r.turnIndex+1)%r.activePlayers.length;
 
-
 const nextUser=
 r.activePlayers[r.turnIndex];
-
 
 io.to(roomId).emit(
 'turnChanged',
@@ -451,18 +419,30 @@ nextUser
 );
 
 
-});
-socket.on('openCards',({roomId})=>{
+// yeni timer
 
-const r=rooms[roomId];
+if(r.turnTimer)
+clearInterval(r.turnTimer);
 
-if(!r) return;
 
+r.turnTime=30;
+
+r.turnTimer=setInterval(()=>{
 
 io.to(roomId).emit(
-'showCards',
-r.cards
+'turnTimer',
+r.turnTime
 );
+
+r.turnTime--;
+
+if(r.turnTime<0){
+
+clearInterval(r.turnTimer);
+
+}
+
+},1000);
 
 
 });
