@@ -306,7 +306,8 @@ decisionSeconds=1;
 io.to(roomId).emit(
 'openDecision',
 {
-seconds:decisionSeconds
+seconds:decisionSeconds,
+turnUser:username
 }
 );
 
@@ -456,6 +457,127 @@ socket.on('leaveRoom', async ({ roomId, username }) => {
       leave(currentRoom, currentUser);
     }
   });
+  socket.on('openCards',({roomId})=>{
+
+const r=rooms[roomId];
+
+if(!r) return;
+
+
+// kartları aç
+
+io.to(roomId).emit(
+'showCards',
+r.cards
+);
+
+
+// xal hesabla
+
+const calculatePoints=(cards)=>{
+
+const ranks=cards.map(c=>c.rank);
+
+if(ranks.filter(r=>r==='T').length===3)
+return 33;
+
+if(ranks.filter(r=>r==='T').length===2)
+return 22;
+
+if(ranks.filter(r=>r==='6').length===3)
+return 32;
+
+
+const value=(r)=>{
+
+if(r==='T') return 11;
+
+if(['K','D','B'].includes(r))
+return 10;
+
+return Number(r);
+
+};
+
+
+const suits={};
+
+cards.forEach(c=>{
+
+if(!suits[c.suit])
+suits[c.suit]=0;
+
+suits[c.suit]+=value(c.rank);
+
+});
+
+return Math.max(
+...Object.values(suits)
+);
+
+};
+
+
+// qalibi tap
+
+let winner=null;
+let maxScore=0;
+
+
+Object.keys(r.cards).forEach(user=>{
+
+const score=
+calculatePoints(r.cards[user]);
+
+if(score>maxScore){
+
+maxScore=score;
+winner=user;
+
+}
+
+});
+
+
+// qalibi saxla
+
+r.lastWinner=winner;
+
+
+// hamıya bildir
+
+io.to(roomId).emit(
+'roundWinner',
+{
+winner,
+score:maxScore
+}
+);
+
+
+// pot qalibə getsin
+
+User.findOne({username:winner})
+.then(user=>{
+
+user.balance+=r.pot;
+
+user.save();
+
+});
+
+
+// pot sıfırla
+
+r.pot=0;
+
+io.to(roomId).emit(
+'updatePot',
+0
+);
+
+
+});
 });
 // MongoDB Atlas bağlantısı
 mongoose.connect("mongodb+srv://admin:123@cluster0.1xrr77f.mongodb.net/ciyerAxsami") 
