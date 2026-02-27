@@ -172,6 +172,7 @@ rooms[roomId].activePlayers.indexOf(starter);
 
 const cards = dealCards(rooms[roomId].activePlayers);
 io.to(roomId).emit('roundStarted', cards);
+rooms[roomId].cards=cards;
 
 
 // növbə kimdədir
@@ -249,7 +250,7 @@ if(!r) return;
 
 // növbə yoxla
 
-const turnUser=
+const turnUser =
 r.activePlayers[r.turnIndex];
 
 if(turnUser!==username)
@@ -262,14 +263,30 @@ if(amount < r.lastBet)
 return;
 
 
+r.lastBet=amount;
+
+
 // son mərc
 
 r.lastBet=amount;
 
+if(r.activePlayers.length===2){
 
+io.to(roomId).emit(
+'openCardsTimer',
+10
+);
+
+}
 // pot artır
 
 r.pot+=Number(amount);
+
+
+io.to(roomId).emit(
+'updatePot',
+r.pot
+);
 
 
 // hamıya göndər
@@ -329,6 +346,52 @@ io.to(roomId).emit(
 next
 );
 
+/*
+=========================
+3+ OYUNCU
+=========================
+*/
+
+if(r.activePlayers.length>2){
+
+r.turnIndex=
+(r.turnIndex+1)%r.activePlayers.length;
+
+const nextUser=
+r.activePlayers[r.turnIndex];
+
+io.to(roomId).emit(
+'turnChanged',
+nextUser
+);
+
+return;
+
+}
+
+
+/*
+=========================
+2 OYUNCU
+=========================
+*/
+
+
+// kart aç timeri
+
+r.openTime=10;
+
+
+io.to(roomId).emit(
+'openDecision',
+{
+
+starter:username,
+seconds:10
+
+}
+);
+
 }
 
 },1000);
@@ -365,7 +428,44 @@ next
     io.to(roomId).emit('updatePlayerList', rooms[roomId].allPlayers);
   }
 };
+socket.on('passDecision',({roomId})=>{
 
+const r=rooms[roomId];
+
+if(!r) return;
+
+
+// növbə dəyiş
+
+r.turnIndex=
+(r.turnIndex+1)%r.activePlayers.length;
+
+
+const nextUser=
+r.activePlayers[r.turnIndex];
+
+
+io.to(roomId).emit(
+'turnChanged',
+nextUser
+);
+
+
+});
+socket.on('openCards',({roomId})=>{
+
+const r=rooms[roomId];
+
+if(!r) return;
+
+
+io.to(roomId).emit(
+'showCards',
+r.cards
+);
+
+
+});
 socket.on('leaveRoom', async ({ roomId, username }) => {
   await leave(roomId, username);
   socket.leave(roomId);
