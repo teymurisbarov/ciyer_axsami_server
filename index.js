@@ -575,6 +575,38 @@ io.to(roomId).emit(
 'updatePot',
 0
 );
+setTimeout(()=>{
+
+const r=rooms[roomId];
+
+if(!r) return;
+
+
+// raund reset
+
+r.roundPlayers=[];
+
+r.activePlayers=[];
+
+r.lastBet=0;
+
+r.cards=null;
+
+
+// timerləri sil
+
+if(r.turnTimer)
+clearInterval(r.turnTimer);
+
+r.turnTimer=null;
+
+
+// clientə bildir
+
+io.to(roomId).emit('newRound');
+
+
+},4000);
 
 
 });
