@@ -399,44 +399,83 @@ next
     io.to(roomId).emit('updatePlayerList', rooms[roomId].allPlayers);
   }
 };
-socket.on('passDecision',({roomId})=>{
-  const r=rooms[roomId];
-  if(!r) return;
+socket.on('passDecision', ({ roomId, username }) => {
+  const r = rooms[roomId];
+  if (!r) return;
+
   // PAS edən raunddan çıxır
-  r.activePlayers = r.activePlayers.filter( p=>p!==username);
-  // Əgər 1 nəfər qalıbsa → o qalibdir
-  if(r.activePlayers.length===1){ 
-    const winner=r.activePlayers[0]; 
-    r.lastWinner=winner;
-    // kartları aç
-    io.to(roomId).emit( 'showCards', r.cards);
-    // qalibi bildir
-    io.to(roomId).emit('roundWinner',{
-  winner,
-  winnerUsername: winner,
-  score: "Opponent PAS"
-});
-    // pul qalibə getsin
-    User.findOne({username:winner})
-    .then(user=>{ user.balance+=r.pot; user.save();});
-    r.pot=0;
+  r.activePlayers = (r.activePlayers || []).filter(p => p !== username);
+
+  // Əgər 1 nəfər qalıbsa → o avtomatik qalibdir və yeni raund başlasın
+  if (r.activePlayers.length === 1) {
+    const winner = r.activePlayers[0];
+    r.lastWinner = winner;
+
+    // (istəsən kartları açmaya da bilərsən, amma qalib elan etmək üçün ola bilər)
+    io.to(roomId).emit('showCards', r.cards);
+
+    io.to(roomId).emit('roundWinner', {
+      winner,
+      winnerUsername: winner,
+      score: "Opponent PAS"
+    });
+
+    // pot qalibə getsin
+    User.findOne({ username: winner })
+      .then(user => {
+        if (!user) return;
+        user.balance += (r.pot || 0);
+        return user.save();
+      });
+
+    // pot sıfırla
+    r.pot = 0;
     io.to(roomId).emit('updatePot', 0);
+
+    // ✅ 4 saniyəyə yeni raund
+    setTimeout(() => {
+      const rr = rooms[roomId];
+      if (!rr) return;
+
+      rr.roundPlayers = [];
+      rr.activePlayers = [];
+      rr.lastBet = 0;
+      rr.cards = null;
+
+      if (rr.turnTimer) clearInterval(rr.turnTimer);
+      rr.turnTimer = null;
+
+      io.to(roomId).emit('newRound');
+    }, 4000);
+
     return;
   }
-  // 3+ oyunçu qalırsa → sadəcə növbə dəyiş
-  r.turnIndex = r.turnIndex % r.activePlayers.length;
-  const nextUser = r.activePlayers[r.turnIndex];
-  io.to(roomId).emit('turnChanged', nextUser);
-  if(!r) return;
-  // növbə dəyiş
-  r.turnIndex=(r.turnIndex+1)%r.activePlayers.length;
-  io.to(roomId).emit('turnChanged', nextUser);
-  // yeni timer
-  if(r.turnTimer)
-  clearInterval(r.turnTimer);
-  r.turnTime=30; r.turnTimer=setInterval(()=>{ io.to(roomId).emit('turnTimer',r.turnTime);
-  r.turnTime--; if(r.turnTime<0){ clearInterval(r.turnTimer);}
-},1000);
+
+  // Əgər 2+ oyunçu qalıbsa → sadəcə növbə davam etsin
+  if (r.activePlayers.length >= 2) {
+    // PAS edən çıxandan sonra növbə index-i düzgün qalsın
+    r.turnIndex = r.turnIndex % r.activePlayers.length;
+
+    const nextUser = r.activePlayers[r.turnIndex];
+    io.to(roomId).emit('turnChanged', nextUser);
+
+    // timeri yenidən başlat
+    if (r.turnTimer) clearInterval(r.turnTimer);
+
+    r.turnTime = 30;
+    r.turnTimer = setInterval(() => {
+      io.to(roomId).emit('turnTimer', r.turnTime);
+      r.turnTime--;
+
+      if (r.turnTime < 0) {
+        clearInterval(r.turnTimer);
+
+        r.turnIndex = (r.turnIndex + 1) % r.activePlayers.length;
+        const next = r.activePlayers[r.turnIndex];
+        io.to(roomId).emit('turnChanged', next);
+      }
+    }, 1000);
+  }
 });
 socket.on('leaveRoom', async ({ roomId, username }) => {
   await leave(roomId, username);
