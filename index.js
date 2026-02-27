@@ -109,6 +109,13 @@ rooms[roomId].roundPlayers.push(username);
 
 rooms[roomId].pot += Number(amount);
 
+if(rooms[roomId].seka){
+
+if(amount < rooms[roomId].pot/2)
+return;
+
+}
+
 }
 
 
@@ -477,6 +484,63 @@ socket.on('passDecision', ({ roomId, username }) => {
     }, 1000);
   }
 });
+socket.on('sekaRequest',({roomId,username})=>{
+
+const r=rooms[roomId];
+
+if(!r) return;
+
+io.to(roomId).emit('sekaOffer',{
+from:username
+});
+
+});
+
+socket.on('sekaAccept',({roomId})=>{
+
+const r=rooms[roomId];
+
+if(!r) return;
+
+r.seka=true;
+
+io.to(roomId).emit('sekaStarted',{
+pot:r.pot
+});
+
+});
+socket.on('halfRequest',({roomId,username})=>{
+
+io.to(roomId).emit('halfOffer',{
+from:username
+});
+
+});
+socket.on('halfAccept',({roomId})=>{
+
+const r=rooms[roomId];
+
+if(!r) return;
+
+const half=r.pot/2;
+
+r.activePlayers.forEach(async user=>{
+
+const u=await User.findOne({username:user});
+
+u.balance+=half;
+
+u.save();
+
+});
+
+r.pot=0;
+
+io.to(roomId).emit('updatePot',0);
+
+io.to(roomId).emit('newRound');
+
+});
 socket.on('leaveRoom', async ({ roomId, username }) => {
   await leave(roomId, username);
   socket.leave(roomId);
@@ -558,7 +622,21 @@ Object.keys(r.cards).forEach(user=>{
 
 const score=
 calculatePoints(r.cards[user]);
+let scores=[];
 
+Object.keys(r.cards).forEach(user=>{
+
+scores.push(calculatePoints(r.cards[user]));
+
+});
+
+if(scores[0]===scores[1]){
+
+io.to(roomId).emit('sekaRound');
+
+return;
+
+}
 if(score>maxScore){
 
 maxScore=score;
