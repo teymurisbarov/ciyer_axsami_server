@@ -93,91 +93,108 @@ io.on('connection', (socket) => {
 
 if (!rooms[roomId]) return;
 
-// pot yoxdursa yarat
+
+// pot yarat
+
 if(!rooms[roomId].pot){
 rooms[roomId].pot=0;
 }
 
+
 // duplicate olmasın
+
 if(!rooms[roomId].roundPlayers.includes(username)){
 
 rooms[roomId].roundPlayers.push(username);
 
-// pot artır
 rooms[roomId].pot += Number(amount);
 
 }
 
-// hamıya göndər
+
+// pot hamıya getsin
 
 io.to(roomId).emit('updatePot',
 rooms[roomId].pot);
 
-  if (!rooms[roomId]) return;
 
-  // Raunda daxil olanlar
-  if (!rooms[roomId].roundPlayers.includes(username)) {
-    rooms[roomId].roundPlayers.push(username);
-  }
+// minimum 2 nəfər
 
-  // Raunda daxil olanları hamıya göstər
-  io.to(roomId).emit(
-    'roundPlayers',
-    rooms[roomId].roundPlayers
-  );
+if(
+rooms[roomId].roundPlayers.length >=2 &&
+!rooms[roomId].timerActive
+){
 
+rooms[roomId].timerActive=true;
 
-  // Minimum 2 nəfər oldu → countdown başlasın
-  if (
-    rooms[roomId].roundPlayers.length >= 2 &&
-    !rooms[roomId].timerActive
-  ){
-
-    rooms[roomId].timerActive=true;
-    rooms[roomId].countdown=10;
+rooms[roomId].countdown=10;
 
 
-    let interval=setInterval(()=>{
+// 🔥 ƏN VACİB HİSSƏ
 
-      io.to(roomId).emit(
-        'roundCountdown',
-        rooms[roomId].countdown
-      );
+const roundInterval = setInterval(()=>{
 
-      rooms[roomId].countdown--;
+io.to(roomId).emit(
+'roundCountdown',
+rooms[roomId].countdown
+);
+
+rooms[roomId].countdown--;
 
 
-      if(rooms[roomId].countdown<0){
+if(rooms[roomId].countdown < 0){
 
-  clearInterval(roundInterval);
+clearInterval(roundInterval);
 
-  // ✅ Raund başlayır: iştirakçıları sabitlə
-  rooms[roomId].activePlayers = [...rooms[roomId].roundPlayers];
 
-  // ✅ Başlayan kimdir?
-  const winner = rooms[roomId].lastWinner;
-  const idx = winner
-    ? rooms[roomId].activePlayers.indexOf(winner)
-    : 0;
+// raund başladı
 
-  rooms[roomId].turnIndex = idx >= 0 ? idx : 0;
+rooms[roomId].activePlayers =
+[...rooms[roomId].roundPlayers];
 
-  const currentTurnUser = rooms[roomId].activePlayers[rooms[roomId].turnIndex];
 
-  // Raund başladı
-  io.to(roomId).emit('roundStarted', rooms[roomId].activePlayers);
+// ilk raundsa ilk daxil olan
 
-  // ✅ Növbə kimdədir hamıya bildir
-  io.to(roomId).emit('turnChanged', currentTurnUser);
+let starter=rooms[roomId].lastWinner;
 
-  // növbəti raund üçün hazır state
-  rooms[roomId].timerActive = false;
-  rooms[roomId].roundPlayers = [];
+if(!starter){
+
+starter=rooms[roomId].activePlayers[0];
+
 }
 
-    },1000);
 
-  }
+rooms[roomId].turnIndex=
+rooms[roomId].activePlayers.indexOf(starter);
+
+
+// raund başladı
+
+io.to(roomId).emit(
+'roundStarted',
+rooms[roomId].activePlayers
+);
+
+
+// növbə kimdədir
+
+io.to(roomId).emit(
+'turnChanged',
+starter
+);
+
+
+// reset
+
+rooms[roomId].timerActive=false;
+rooms[roomId].roundPlayers=[];
+
+}
+
+},1000);
+
+
+}
 
 });
 socket.on('leaveRoom', async ({ roomId, username }) => {
