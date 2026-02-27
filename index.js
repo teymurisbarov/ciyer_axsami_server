@@ -85,7 +85,29 @@ io.on('connection', (socket) => {
   io.to(roomId).emit('updatePlayerList', rooms[roomId].allPlayers);
 });
   // Raunda Qoşulma (Düyməyə basanda)
-  socket.on('joinRound', async ({ roomId, username }) => {
+  socket.on('joinRound', ({ roomId, username, amount }) => {
+
+if (!rooms[roomId]) return;
+
+// pot yoxdursa yarat
+if(!rooms[roomId].pot){
+rooms[roomId].pot=0;
+}
+
+// duplicate olmasın
+if(!rooms[roomId].roundPlayers.includes(username)){
+
+rooms[roomId].roundPlayers.push(username);
+
+// pot artır
+rooms[roomId].pot += Number(amount);
+
+}
+
+// hamıya göndər
+
+io.to(roomId).emit('updatePot',
+rooms[roomId].pot);
 
   if (!rooms[roomId]) return;
 
@@ -138,7 +160,7 @@ io.on('connection', (socket) => {
 
         rooms[roomId].timerActive=false;
         rooms[roomId].roundPlayers=[];
-
+rooms[roomId].pot=0;
       }
 
     },1000);
