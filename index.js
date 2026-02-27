@@ -63,8 +63,12 @@ io.on('connection', (socket) => {
       meta: null,
       allPlayers: [], // [{ username, balance }]
       roundPlayers: [],
-      timerActive: false
+      timerActive: false,
+      activePlayers: [],     // raund başlayandan sonra sabit siyahı
+      turnIndex: 0,
+      lastWinner: null   
     };
+       
   }
 
   // DB-dən balansı götür
@@ -145,23 +149,31 @@ rooms[roomId].pot);
 
       if(rooms[roomId].countdown<0){
 
-        clearInterval(interval);
+  clearInterval(roundInterval);
 
-        // Kartları payla
-        const cards = dealCards(
-          rooms[roomId].roundPlayers
-        );
+  // ✅ Raund başlayır: iştirakçıları sabitlə
+  rooms[roomId].activePlayers = [...rooms[roomId].roundPlayers];
 
-        io.to(roomId).emit(
-          'roundStarted',
-          cards
-        );
+  // ✅ Başlayan kimdir?
+  const winner = rooms[roomId].lastWinner;
+  const idx = winner
+    ? rooms[roomId].activePlayers.indexOf(winner)
+    : 0;
 
+  rooms[roomId].turnIndex = idx >= 0 ? idx : 0;
 
-        rooms[roomId].timerActive=false;
-        rooms[roomId].roundPlayers=[];
-rooms[roomId].pot=0;
-      }
+  const currentTurnUser = rooms[roomId].activePlayers[rooms[roomId].turnIndex];
+
+  // Raund başladı
+  io.to(roomId).emit('roundStarted', rooms[roomId].activePlayers);
+
+  // ✅ Növbə kimdədir hamıya bildir
+  io.to(roomId).emit('turnChanged', currentTurnUser);
+
+  // növbəti raund üçün hazır state
+  rooms[roomId].timerActive = false;
+  rooms[roomId].roundPlayers = [];
+}
 
     },1000);
 
@@ -172,10 +184,33 @@ socket.on('leaveRoom', async ({ roomId, username }) => {
   await leave(roomId, username);
   socket.leave(roomId);
 });
+socket.on('roundWinner', ({ roomId, winnerUsername }) => {
+  if (!rooms[roomId]) return;
+  rooms[roomId].lastWinner = winnerUsername; // ✅ növbəti raund buna görə başlayacaq
+});
   // Mərc və hərəkətlər
   socket.on('makeMove', (data) => {
-    io.to(data.roomId).emit('updateGame', data);
-  });
+  const { roomId, username, move } = data;
+  const r = rooms[roomId];
+  if (!r || !r.activePlayers || r.activePlayers.length < 2) return;
+
+  const currentTurnUser = r.activePlayers[r.turnIndex];
+
+  // ✅ Növbə onda deyilsə, ignore et (və ya xəbər ver)
+  if (username !== currentTurnUser) {
+    socket.emit('notYourTurn', { currentTurn: currentTurnUser });
+    return;
+  }
+
+  // oyunu hamıya yay
+  io.to(roomId).emit('updateGame', data);
+
+  // ✅ hər “merc”dən sonra növbə dəyişsin
+  if (move === 'merc') {
+    r.turnIndex = (r.turnIndex + 1) % r.activePlayers.length;
+    io.to(roomId).emit('turnChanged', r.activePlayers[r.turnIndex]);
+  }
+});
 
   // Otaqdan çıxış funksiyası (Disconnet və ya manual çıxış)
   const leave = async (roomId, username) => {
