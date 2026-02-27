@@ -261,13 +261,15 @@ const endRound = async (roomId, winnerUsername, scoreLabel) => {
   await emitBalances(roomId);
 
   // raund reset (4 saniyə sonra)
-  setTimeout(() => {
+  setTimeout(async () => {
     const rr = rooms[roomId];
     if (!rr) return;
 
     rr.roundPlayers = [];
     rr.activePlayers = [];
     rr.lastBet = 0;
+    const roomDB=await Room.findById(roomId);
+    rr.lastBet=roomDB.minAmount;
     rr.cards = null;
     rr.sekaMode = false;
     rr.sekaOfferFrom = null;
@@ -307,16 +309,35 @@ io.on('connection', (socket) => {
     io.to(roomId).emit('updatePot', r.pot || 0);
   });
   socket.on('skipTurn',({roomId,username})=>{
-    const r=rooms[roomId];
-    if(!r) return;
-    const turnUser=r.activePlayers[r.turnIndex];
-    if(turnUser!==username)
-    return;
-    r.turnIndex=(r.turnIndex+1)%r.activePlayers.length;
-    const nextUser=r.activePlayers[r.turnIndex];
-    io.to(roomId).emit('turnChanged',nextUser);
-    startTurnTimer(roomId);
-  });
+
+const r=rooms[roomId];
+
+if(!r) return;
+
+const turnUser=
+r.activePlayers[r.turnIndex];
+
+if(turnUser!==username)
+return;
+
+
+stopTurnTimer(r);
+
+r.turnIndex=
+(r.turnIndex+1)%
+r.activePlayers.length;
+
+const nextUser=
+r.activePlayers[r.turnIndex];
+
+io.to(roomId).emit(
+'turnChanged',
+nextUser
+);
+
+startTurnTimer(roomId);
+
+});
   // Manual çıxış
   socket.on('leaveRoom', async ({ roomId, username }) => {
     try {
