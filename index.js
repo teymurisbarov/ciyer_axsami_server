@@ -411,10 +411,11 @@ socket.on('passDecision',({roomId})=>{
     // kartları aç
     io.to(roomId).emit( 'showCards', r.cards);
     // qalibi bildir
-    io.to(roomId).emit( 'roundWinner',{
-      winner,
-      score:"Opponent PAS"
-    });
+    io.to(roomId).emit('roundWinner',{
+  winner,
+  winnerUsername: winner,
+  score: "Opponent PAS"
+});
     // pul qalibə getsin
     User.findOne({username:winner})
     .then(user=>{ user.balance+=r.pot; user.save();});
@@ -536,13 +537,11 @@ r.lastWinner=winner;
 
 // hamıya bildir
 
-io.to(roomId).emit(
-'roundWinner',
-{
-winner,
-score:maxScore
-}
-);
+io.to(roomId).emit('roundWinner',{
+  winner,
+  winnerUsername: winner,
+  score: maxScore
+});
 
 
 // pot qalibə getsin
