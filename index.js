@@ -400,52 +400,42 @@ next
   }
 };
 socket.on('passDecision',({roomId})=>{
-
-const r=rooms[roomId];
-
-if(!r) return;
-
-
-// növbə dəyiş
-
-r.turnIndex=
-(r.turnIndex+1)%r.activePlayers.length;
-
-const nextUser=
-r.activePlayers[r.turnIndex];
-
-io.to(roomId).emit(
-'turnChanged',
-nextUser
-);
-
-
-// yeni timer
-
-if(r.turnTimer)
-clearInterval(r.turnTimer);
-
-
-r.turnTime=30;
-
-r.turnTimer=setInterval(()=>{
-
-io.to(roomId).emit(
-'turnTimer',
-r.turnTime
-);
-
-r.turnTime--;
-
-if(r.turnTime<0){
-
-clearInterval(r.turnTimer);
-
-}
-
+  const r=rooms[roomId];
+  if(!r) return;
+  // PAS edən raunddan çıxır
+  r.activePlayers = r.activePlayers.filter( p=>p!==username);
+  // Əgər 1 nəfər qalıbsa → o qalibdir
+  if(r.activePlayers.length===1){ 
+    const winner=r.activePlayers[0]; 
+    r.lastWinner=winner;
+    // kartları aç
+    io.to(roomId).emit( 'showCards', r.cards);
+    // qalibi bildir
+    io.to(roomId).emit( 'roundWinner',{
+      winner,
+      score:"Opponent PAS"
+    });
+    // pul qalibə getsin
+    User.findOne({username:winner})
+    .then(user=>{ user.balance+=r.pot; user.save();});
+    r.pot=0;
+    io.to(roomId).emit('updatePot', 0);
+    return;
+  }
+  // 3+ oyunçu qalırsa → sadəcə növbə dəyiş
+  r.turnIndex = r.turnIndex % r.activePlayers.length;
+  const nextUser = r.activePlayers[r.turnIndex];
+  io.to(roomId).emit('turnChanged', nextUser);
+  if(!r) return;
+  // növbə dəyiş
+  r.turnIndex=(r.turnIndex+1)%r.activePlayers.length;
+  io.to(roomId).emit('turnChanged', nextUser);
+  // yeni timer
+  if(r.turnTimer)
+  clearInterval(r.turnTimer);
+  r.turnTime=30; r.turnTimer=setInterval(()=>{ io.to(roomId).emit('turnTimer',r.turnTime);
+  r.turnTime--; if(r.turnTime<0){ clearInterval(r.turnTimer);}
 },1000);
-
-
 });
 socket.on('leaveRoom', async ({ roomId, username }) => {
   await leave(roomId, username);
