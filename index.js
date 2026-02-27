@@ -152,7 +152,6 @@ clearInterval(roundInterval);
 rooms[roomId].activePlayers =
 [...rooms[roomId].roundPlayers];
 rooms[roomId].lastBet=0;
-rooms[roomId].pot=0;
 
 // ilk raundsa ilk daxil olan
 
@@ -250,7 +249,7 @@ if(!r) return;
 
 // növbə yoxla
 
-const turnUser =
+const turnUser=
 r.activePlayers[r.turnIndex];
 
 if(turnUser!==username)
@@ -263,7 +262,7 @@ if(amount < r.lastBet)
 return;
 
 
-// son mərc yadda saxla
+// son mərc
 
 r.lastBet=amount;
 
@@ -281,6 +280,12 @@ r.pot
 );
 
 
+// 🔥 TIMER RESET
+
+if(r.turnTimer)
+clearInterval(r.turnTimer);
+
+
 // növbə dəyiş
 
 r.turnIndex=
@@ -289,13 +294,47 @@ r.turnIndex=
 const nextUser=
 r.activePlayers[r.turnIndex];
 
+
 io.to(roomId).emit(
 'turnChanged',
 nextUser
 );
 
-});
 
+// 🔥 YENİ TIMER
+
+r.turnTime=30;
+
+r.turnTimer=setInterval(()=>{
+
+io.to(roomId).emit(
+'turnTimer',
+r.turnTime
+);
+
+r.turnTime--;
+
+if(r.turnTime<0){
+
+clearInterval(r.turnTimer);
+
+r.turnIndex=
+(r.turnIndex+1)%r.activePlayers.length;
+
+const next=
+r.activePlayers[r.turnIndex];
+
+io.to(roomId).emit(
+'turnChanged',
+next
+);
+
+}
+
+},1000);
+
+
+});
   // Otaqdan çıxış funksiyası (Disconnet və ya manual çıxış)
   const leave = async (roomId, username) => {
   if (!roomId || !username) return;
