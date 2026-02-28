@@ -282,6 +282,23 @@ const endRound = async (roomId, winnerUsername, scoreLabel) => {
 
   // raund reset (4 saniyə sonra)
   setTimeout(async () => {
+    if(!winnerUsername && r.pot>0){
+
+for(const p of r.activePlayers){
+
+const u=await User.findOne({username:p});
+
+if(u){
+
+u.balance+=r.pot/r.activePlayers.length;
+
+await u.save();
+
+}
+
+}
+
+}
     const rr = rooms[roomId];
     if (!rr) return;
 
@@ -428,7 +445,7 @@ await user.save();
 
 r.pot += joinAmount;
 
-io.to(roomId).emit('updatePot', r.pot);
+io.to(roomId).emit('updatePot', r.pot,r.lastBet);
 
 await emitBalances(roomId);
     }
@@ -504,7 +521,7 @@ await user.save();
 r.pot += bet;
 
 await emitBalances(roomId);
-    io.to(roomId).emit('updatePot', r.pot);
+    io.to(roomId).emit('updatePot', r.pot,r.lastBet);
 
     // timeri dayandır
     stopTurnTimer(r);
@@ -728,7 +745,7 @@ await emitBalances(roomId);
     // pot artır
 
     r.pot = safeNumber(r.pot) + joinAmount;
-    io.to(roomId).emit('updatePot', r.pot);
+    io.to(roomId).emit('updatePot', r.pot,r.lastBet);
 
     // aktiv oyunçu siyahısına əlavə et
     r.activePlayers.push(username);
