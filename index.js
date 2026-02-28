@@ -30,6 +30,20 @@ const calculatePoints = (cards) => {
   cards.forEach(c => {suits[c.suit] = (suits[c.suit] || 0) + value(c.rank);});
   return Math.max(...Object.values(suits));
 };
+User.watch().on('change', async (data)=>{
+
+const userId=data.documentKey._id;
+
+const user=await User.findById(userId);
+
+if(!user) return;
+
+io.emit('balanceUpdateGlobal',{
+username:user.username,
+balance:user.balance
+});
+
+});
 
 mongoose.connect("mongodb+srv://admin:123@cluster0.1xrr77f.mongodb.net/ciyerAxsami")
   .then(() => console.log('MongoDB qoşuldu'))
@@ -290,7 +304,7 @@ io.on('connection', (socket) => {
       if(user){
         socket.emit('balanceUpdate', user.balance );
       }
-    },2000);
+    },1000);
   });
 
   // Otağa giriş
