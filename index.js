@@ -308,35 +308,22 @@ io.on('connection', (socket) => {
     io.to(roomId).emit('updatePlayerList', r.allPlayers);
     io.to(roomId).emit('updatePot', r.pot || 0);
   });
-  socket.on('skipTurn',({roomId,username})=>{
+  socket.on('skipTurn', ({ roomId, username }) => {
+  const r = rooms[roomId];
+  if (!r || !r.activePlayers?.length) return;
 
-const r=rooms[roomId];
+  // yalnız növbədə olan keçirə bilər
+  const turnUser = r.activePlayers[r.turnIndex];
+  if (turnUser !== username) return;
 
-if(!r) return;
+  // növbə dəyişsin
+  stopTurnTimer(r);
 
-const turnUser=
-r.activePlayers[r.turnIndex];
+  r.turnIndex = (r.turnIndex + 1) % r.activePlayers.length;
+  const nextUser = r.activePlayers[r.turnIndex];
 
-if(turnUser!==username)
-return;
-
-
-stopTurnTimer(r);
-
-r.turnIndex=
-(r.turnIndex+1)%
-r.activePlayers.length;
-
-const nextUser=
-r.activePlayers[r.turnIndex];
-
-io.to(roomId).emit(
-'turnChanged',
-nextUser
-);
-
-startTurnTimer(roomId);
-
+  io.to(roomId).emit('turnChanged', nextUser);
+  startTurnTimer(roomId);
 });
   // Manual çıxış
   socket.on('leaveRoom', async ({ roomId, username }) => {
