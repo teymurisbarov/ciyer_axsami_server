@@ -284,6 +284,14 @@ const endRound = async (roomId, winnerUsername, scoreLabel) => {
 io.on('connection', (socket) => {
   let currentRoom = null;
   let currentUser = null;
+  socket.on('watchBalance', ({username})=>{
+    setInterval(async()=>{
+      const user=await User.findOne({username});
+      if(user){
+        socket.emit('balanceUpdate', user.balance );
+      }
+    },2000);
+  });
 
   // Otağa giriş
   socket.on('joinRoom', async ({ roomId, username }) => {
@@ -387,8 +395,22 @@ io.on('connection', (socket) => {
     // eyni user 2 dəfə girməsin
     if (!r.roundPlayers.includes(username)) {
       r.roundPlayers.push(username);
-      r.pot = safeNumber(r.pot) + joinAmount;
-      io.to(roomId).emit('updatePot', r.pot);
+      const user=await User.findOne({username});
+
+if(!user) return;
+
+if(user.balance < joinAmount)
+return;
+
+user.balance-=joinAmount;
+
+await user.save();
+
+r.pot += joinAmount;
+
+io.to(roomId).emit('updatePot', r.pot);
+
+await emitBalances(roomId);
     }
 
     // minimum 2 nəfər => 10s countdown başlasın
@@ -448,7 +470,20 @@ io.on('connection', (socket) => {
 
     // pot artır + lastBet
     r.lastBet = bet;
-    r.pot = safeNumber(r.pot) + bet;
+    const user=await User.findOne({username});
+
+if(!user) return;
+
+if(user.balance < bet)
+return;
+
+user.balance-=bet;
+
+await user.save();
+
+r.pot += bet;
+
+await emitBalances(roomId);
     io.to(roomId).emit('updatePot', r.pot);
 
     // timeri dayandır
@@ -671,6 +706,7 @@ io.on('connection', (socket) => {
     if (r.activePlayers.includes(username)) return;
 
     // pot artır
+
     r.pot = safeNumber(r.pot) + joinAmount;
     io.to(roomId).emit('updatePot', r.pot);
 
