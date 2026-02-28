@@ -30,20 +30,6 @@ const calculatePoints = (cards) => {
   cards.forEach(c => {suits[c.suit] = (suits[c.suit] || 0) + value(c.rank);});
   return Math.max(...Object.values(suits));
 };
-User.watch().on('change', async (data)=>{
-
-const userId=data.documentKey._id;
-
-const user=await User.findById(userId);
-
-if(!user) return;
-
-io.emit('balanceUpdateGlobal',{
-username:user.username,
-balance:user.balance
-});
-
-});
 
 mongoose.connect("mongodb+srv://admin:123@cluster0.1xrr77f.mongodb.net/ciyerAxsami")
   .then(() => console.log('MongoDB qoşuldu'))
@@ -56,6 +42,26 @@ const UserSchema = new mongoose.Schema({
   balance: { type: Number, default: 0 }
 });
 const User = mongoose.model('User', UserSchema);
+User.watch().on('change', async (data)=>{
+
+try{
+
+const userId=data.documentKey._id;
+
+const user=await User.findById(userId);
+
+if(!user) return;
+
+io.emit('balanceUpdateGlobal',{
+username:user.username,
+balance:user.balance
+});
+
+}catch(e){
+console.log("watch error",e);
+}
+
+});
 const RoomSchema = new mongoose.Schema({
   name: { type: String, required: true },
   limit: { type: Number, min: 2, max: 10, required: true },
