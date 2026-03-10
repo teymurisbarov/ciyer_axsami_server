@@ -227,29 +227,41 @@ const stopTurnTimer = (r) => {
 };
 
 const startTurnTimer = (roomId) => {
+
   const r = rooms[roomId];
   if (!r) return;
 
   stopTurnTimer(r);
+
   r.turnTime = 30;
 
+  // ilk saniyəni göndər
+  io.to(roomId).emit('turnTimer', r.turnTime);
+
   r.turnTimer = setInterval(() => {
-    io.to(roomId).emit('turnTimer', r.turnTime);
+
     r.turnTime--;
 
-    if (r.turnTime < 0) {
+    io.to(roomId).emit('turnTimer', r.turnTime);
+
+    if (r.turnTime <= 0) {
+
       stopTurnTimer(r);
 
       if (!r.activePlayers || r.activePlayers.length === 0) return;
 
       r.turnIndex = (r.turnIndex + 1) % r.activePlayers.length;
+
       const nextUser = r.activePlayers[r.turnIndex];
+
       io.to(roomId).emit('turnChanged', nextUser);
 
-      // yenidən timer
       startTurnTimer(roomId);
+
     }
+
   }, 1000);
+
 };
 
 const endRound = async (roomId, winnerUsername, scoreLabel) => {
